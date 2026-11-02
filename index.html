@@ -246,10 +246,9 @@
                     </div>
                 </section>
 
-                <!-- TAB 3: MASTER PAKAIAN & KAIN (Terpisah) -->
+                <!-- TAB 3: MASTER PAKAIAN & KAIN -->
                 <section id="tab-master_fabric" class="tab-content hidden space-y-6">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <!-- Jenis Pakaian Master -->
                         <div class="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                             <div class="flex justify-between items-center">
                                 <div>
@@ -275,7 +274,6 @@
                             </div>
                         </div>
 
-                        <!-- Jenis Kain Master -->
                         <div class="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                             <div class="flex justify-between items-center">
                                 <div>
@@ -880,7 +878,7 @@
     <div id="inventoryModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
             <h3 class="text-lg font-bold mb-4">Tambah Item Inventory Manual</h3>
-            <form onsubmit="saveInventoryManual(event)" class="space-y-4">
+            <form id="inventoryForm" onsubmit="saveInventoryManual(event)" class="space-y-4">
                 <input type="hidden" id="invId">
                 <div>
                     <label class="block text-xs font-semibold mb-1">Nama Bahan</label>
@@ -938,9 +936,7 @@
         <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-4 shadow-2xl border border-slate-200 dark:border-slate-800 relative text-center">
             <button onclick="closeDesignModal()" class="absolute top-4 right-4 text-slate-500 hover:text-slate-900 dark:hover:text-white p-2 rounded-full bg-slate-100 dark:bg-slate-800"><i data-lucide="x" class="w-5 h-5"></i></button>
             <h3 id="designModalTitle" class="text-base font-bold text-slate-900 dark:text-white mb-3">Preview Design SPK</h3>
-            <div id="designModalContent" class="flex items-center justify-center max-h-[75vh] overflow-auto p-2">
-                <!-- Content loaded dynamically -->
-            </div>
+            <div id="designModalContent" class="flex items-center justify-center max-h-[75vh] overflow-auto p-2"></div>
         </div>
     </div>
 
@@ -967,11 +963,10 @@
     <!-- Firebase & App Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
-        // Your web app's Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyCMWd40WW-SeeVpTkav5zOx0IUHNjFtnCI",
             authDomain: "newposorder-aa240.firebaseapp.com",
@@ -982,7 +977,6 @@
             measurementId: "G-90QWWJET6C"
         };
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
         let db, auth, userId = null;
@@ -1024,20 +1018,25 @@
         window.renderSalaries = renderSalaries;
         window.renderAll = renderAll;
 
-       // Muat data dari localStorage terlebih dahulu agar aman saat refresh
         loadFromLocalStorage();
 
         try {
             db = getFirestore(app);
-            userId = 'local_user_savelle';
-            setupRealtimeSync();
+            auth = getAuth(app);
+            signInAnonymously(auth).then(() => {
+                userId = auth.currentUser ? auth.currentUser.uid : 'local_user_savelle';
+                setupRealtimeSync();
+            }).catch(e => {
+                userId = 'local_user_savelle';
+                setupRealtimeSync();
+            });
         } catch (e) {
             console.warn("Running in local-only mode:", e);
         }
 
         function loadFromLocalStorage() {
             try {
-                const saved = localStorage.getItem('savelle_app_data_' + appId);
+                const saved = localStorage.getItem('savelle_app_data_' + firebaseConfig.appId);
                 if (saved) {
                     appData = JSON.parse(saved);
                 }
@@ -1048,13 +1047,13 @@
         function setupRealtimeSync() {
             if (!db || !userId) return;
             try {
-                const docRef = doc(db, 'artifacts', appId, 'public_data', 'store_main_v14');
+                const docRef = doc(db, 'artifacts', firebaseConfig.appId, 'public_data', 'store_main_v15');
                 onSnapshot(docRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const cloudData = docSnap.data();
                         if (cloudData && cloudData.payload) {
                             const parsedCloud = JSON.parse(cloudData.payload);
-                            if (parsedCloud.spk && parsedCloud.spk.length >= appData.spk.length) {
+                            if (parsedCloud && parsedCloud.spk) {
                                 appData = parsedCloud;
                                 renderAll();
                             }
@@ -1069,18 +1068,26 @@
         window.syncToCloud = function() {
             renderAll();
             try { 
-                localStorage.setItem('savelle_app_data_' + appId, JSON.stringify(appData)); 
+                localStorage.setItem('savelle_app_data_' + firebaseConfig.appId, JSON.stringify(appData)); 
             } catch (e) {}
-            if (!db || !userId) return;
+            if (!db) return;
             try {
-                const docRef = doc(db, 'artifacts', appId, 'public_data', 'store_main_v14');
+                const docRef = doc(db, 'artifacts', firebaseConfig.appId, 'public_data', 'store_main_v15');
                 setDoc(docRef, { payload: JSON.stringify(appData), updatedAt: new Date().toISOString() }).catch(e => {});
             } catch(e) {}
         };
 
+        window.resetAllData = function() {
+            showModal('Reset Data', 'Yakin ingin mereset seluruh data aplikasi ke awal (kosong)?', () => {
+                appData = JSON.parse(JSON.stringify(defaultAppData));
+                syncToCloud();
+            });
+        };
+
         window.switchTab = function(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            const targetEl = document.getElementById(`tab-${tabId}`);
+            if (targetEl) targetEl.classList.remove('hidden');
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('bg-rose-50', 'dark:bg-rose-950/40', 'text-rose-600', 'dark:text-rose-400');
                 if (btn.dataset.target === tabId) btn.classList.add('bg-rose-50', 'dark:bg-rose-950/40', 'text-rose-600', 'dark:text-rose-400');
@@ -1089,18 +1096,20 @@
                 dashboard: 'Dashboard Overview',
                 spk: 'Daftar Order & SPK',
                 master_fabric: 'Master Pakaian & Kain',
-                master_print: 'Master Metode Cetak & Harga',
-                inventory: 'Inventory Stock Kain & Bahan',
+                master_print: 'Master Cetak & Harga',
+                inventory: 'Inventory Stock',
                 finance: 'Kas & Keuangan (Audit)',
                 revenue: 'Revenue & Per-SPK',
                 salaries: 'Gaji Karyawan'
             };
-            document.getElementById('pageTitle').innerText = titles[tabId] || 'Savelle';
+            const titleEl = document.getElementById('pageTitle');
+            if (titleEl) titleEl.innerText = titles[tabId] || 'Savelle';
             if (window.innerWidth < 768) toggleMobileSidebar();
         };
 
         window.toggleMobileSidebar = function() {
-            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+            const sb = document.getElementById('sidebar');
+            if (sb) sb.classList.toggle('-translate-x-full');
         };
 
         window.toggleDarkMode = function() {
@@ -1108,13 +1117,20 @@
         };
 
         window.showModal = function(title, msg, onConfirm) {
-            document.getElementById('modalTitle').innerText = title;
-            document.getElementById('modalMessage').innerText = msg;
-            document.getElementById('modalBtnConfirm').onclick = () => { onConfirm(); closeModal(); };
-            document.getElementById('customModal').classList.remove('hidden');
+            const mTitle = document.getElementById('modalTitle');
+            const mMsg = document.getElementById('modalMessage');
+            const mBtn = document.getElementById('modalBtnConfirm');
+            if (mTitle) mTitle.innerText = title;
+            if (mMsg) mMsg.innerText = msg;
+            if (mBtn) mBtn.onclick = () => { onConfirm(); closeModal(); };
+            const customModal = document.getElementById('customModal');
+            if (customModal) customModal.classList.remove('hidden');
             lucide.createIcons();
         };
-        window.closeModal = function() { document.getElementById('customModal').classList.add('hidden'); };
+        window.closeModal = function() {
+            const customModal = document.getElementById('customModal');
+            if (customModal) customModal.classList.add('hidden');
+        };
 
         function calcSpkValues(item) {
             let totalQty = (parseInt(item.sizes?.S)||0) + (parseInt(item.sizes?.M)||0) + (parseInt(item.sizes?.L)||0) + (parseInt(item.sizes?.XL)||0) + (parseInt(item.sizes?.XXL)||0) + (parseInt(item.sizes?.XXXL)||0) + (parseInt(item.sizes?.custom)||0);
@@ -1186,12 +1202,13 @@
             renderRevenue();
             renderSalaries();
             checkLowStock();
-            lucide.createIcons();
+            try { lucide.createIcons(); } catch(e){}
         }
 
         function checkLowStock() {
             let low = appData.inventory.filter(i => i.stock <= i.min);
             let banner = document.getElementById('lowStockBanner');
+            if (!banner) return;
             if (low.length > 0) {
                 banner.classList.remove('hidden');
                 document.getElementById('lowStockText').innerText = `Peringatan: Stok ${low[0].name} menipis/minus!`;
@@ -1215,19 +1232,25 @@
             });
 
             let activeSpk = appData.spk.filter(s => s.status !== 'Selesai').length;
-            document.getElementById('dashActiveSPK').innerText = activeSpk;
+            const dashActiveSPK = document.getElementById('dashActiveSPK');
+            if (dashActiveSPK) dashActiveSPK.innerText = activeSpk;
 
             let monthlyOmset = filteredSpk.reduce((acc, s) => acc + calcSpkValues(s).tagihan, 0);
-            document.getElementById('dashMonthlyOmset').innerText = formatRupiah(monthlyOmset);
+            const dashMonthlyOmset = document.getElementById('dashMonthlyOmset');
+            if (dashMonthlyOmset) dashMonthlyOmset.innerText = formatRupiah(monthlyOmset);
 
             let pendingSalaries = appData.salaries.filter(sal => sal.status === 'Belum Dibayar').reduce((acc, sal) => acc + sal.amount, 0);
-            document.getElementById('dashPendingSalaries').innerText = formatRupiah(pendingSalaries);
+            const dashPendingSalaries = document.getElementById('dashPendingSalaries');
+            if (dashPendingSalaries) dashPendingSalaries.innerText = formatRupiah(pendingSalaries);
 
             let netMarginTotal = filteredSpk.reduce((acc, s) => acc + calcSpkValues(s).netProfit, 0);
-            document.getElementById('dashNetMargin').innerText = formatRupiah(netMarginTotal);
+            const dashNetMargin = document.getElementById('dashNetMargin');
+            if (dashNetMargin) dashNetMargin.innerText = formatRupiah(netMarginTotal);
 
-            document.getElementById('dashMandiriBalance').innerText = formatRupiah(appData.balances.mandiri);
-            document.getElementById('dashGopayBalance').innerText = formatRupiah(appData.balances.gopay);
+            const dashMandiriBalance = document.getElementById('dashMandiriBalance');
+            if (dashMandiriBalance) dashMandiriBalance.innerText = formatRupiah(appData.balances.mandiri);
+            const dashGopayBalance = document.getElementById('dashGopayBalance');
+            if (dashGopayBalance) dashGopayBalance.innerText = formatRupiah(appData.balances.gopay);
 
             let sortedDeadlines = [...appData.spk].filter(s => s.status !== 'Selesai').sort((a,b) => new Date(a.deadline) - new Date(b.deadline));
             let deadlineHtml = sortedDeadlines.map(s => `
@@ -1239,31 +1262,35 @@
                     <span class="px-2 py-1 rounded-full font-semibold bg-amber-100 text-amber-700">${s.status}</span>
                 </div>
             `).join('') || '<p class="text-xs text-slate-400">Tidak ada deadline mendesak.</p>';
-            document.getElementById('dashDeadlineList').innerHTML = deadlineHtml;
+            const dashDeadlineList = document.getElementById('dashDeadlineList');
+            if (dashDeadlineList) dashDeadlineList.innerHTML = deadlineHtml;
 
-            const ctx = document.getElementById('salesChart').getContext('2d');
-            if (salesChartInstance) salesChartInstance.destroy();
-            salesChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'],
-                    datasets: [{ 
-                        label: `Omset Revenue ${filterYear} (Rp)`, 
-                        data: Array.from({length: 12}, (_, i) => {
-                            let mm = String(i + 1).padStart(2, '0');
-                            let monthSpks = appData.spk.filter(s => {
-                                if (!s.dateIn) return false;
-                                let p = s.dateIn.split('-');
-                                return p[0] === filterYear && p[1] === mm;
-                            });
-                            return monthSpks.reduce((acc, s) => acc + calcSpkValues(s).tagihan, 0);
-                        }), 
-                        backgroundColor: '#e11d48', 
-                        borderRadius: 8 
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
+            const chartCanvas = document.getElementById('salesChart');
+            if (chartCanvas) {
+                const ctx = chartCanvas.getContext('2d');
+                if (salesChartInstance) salesChartInstance.destroy();
+                salesChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'],
+                        datasets: [{ 
+                            label: `Omset Revenue ${filterYear} (Rp)`, 
+                            data: Array.from({length: 12}, (_, i) => {
+                                let mm = String(i + 1).padStart(2, '0');
+                                let monthSpks = appData.spk.filter(s => {
+                                    if (!s.dateIn) return false;
+                                    let p = s.dateIn.split('-');
+                                    return p[0] === filterYear && p[1] === mm;
+                                });
+                                return monthSpks.reduce((acc, s) => acc + calcSpkValues(s).tagihan, 0);
+                            }), 
+                            backgroundColor: '#e11d48', 
+                            borderRadius: 8 
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
         }
 
         window.onFileSelected = function(e) {
@@ -1271,139 +1298,151 @@
             if (file) {
                 const reader = new FileReader();
                 reader.onload = function(uploadEvent) {
-                    document.getElementById('spkDesignFile').value = uploadEvent.target.result;
+                    const df = document.getElementById('spkDesignFile');
+                    if (df) df.value = uploadEvent.target.result;
                 };
                 reader.readAsDataURL(file);
             }
         };
 
         window.openSPKModal = function(id = null) {
-            document.getElementById('spkForm').reset();
-            document.getElementById('spkId').value = '';
-            document.getElementById('spkDateIn').value = new Date().toISOString().split('T')[0];
+            const form = document.getElementById('spkForm');
+            if (form) form.reset();
+            const spkIdEl = document.getElementById('spkId');
+            if (spkIdEl) spkIdEl.value = '';
+            const spkDateInEl = document.getElementById('spkDateIn');
+            if (spkDateInEl) spkDateInEl.value = new Date().toISOString().split('T')[0];
             
             let selectGarment = document.getElementById('spkGarmentType');
-            selectGarment.innerHTML = appData.masterGarments.map(g => `<option value="${g.name}">${g.name} (Dasar: Rp ${g.basePrice.toLocaleString()})</option>`).join('');
+            if (selectGarment) selectGarment.innerHTML = appData.masterGarments.map(g => `<option value="${g.name}">${g.name} (Dasar: Rp ${g.basePrice.toLocaleString()})</option>`).join('');
 
             let selectFabricMat = document.getElementById('spkFabricMaterial');
-            selectFabricMat.innerHTML = appData.masterFabrics.map(f => `<option value="${f.name}">${f.name} (Rp ${f.pricePerKg.toLocaleString()}/kg)</option>`).join('');
+            if (selectFabricMat) selectFabricMat.innerHTML = appData.masterFabrics.map(f => `<option value="${f.name}">${f.name} (Rp ${f.pricePerKg.toLocaleString()}/kg)</option>`).join('');
 
             let selectPrint = document.getElementById('spkPrintMethod');
-            selectPrint.innerHTML = appData.masterPrint.map(mp => `<option value="${mp.code}">${mp.name} (Rp ${mp.price.toLocaleString()}/${mp.unit})</option>`).join('');
+            if (selectPrint) selectPrint.innerHTML = appData.masterPrint.map(mp => `<option value="${mp.code}">${mp.name} (Rp ${mp.price.toLocaleString()}/${mp.unit})</option>`).join('');
 
             if (id) {
                 let s = appData.spk.find(x => x.id === id);
                 if (s) {
-                    document.getElementById('spkId').value = s.id;
-                    document.getElementById('spkNumber').value = s.number;
-                    document.getElementById('spkDateIn').value = s.dateIn;
-                    document.getElementById('spkClient').value = s.client;
-                    document.getElementById('spkPhone').value = s.phone;
-                    document.getElementById('spkDeadline').value = s.deadline;
-                    document.getElementById('spkAddress').value = s.address;
-                    document.getElementById('spkGarmentType').value = s.garmentType || appData.masterGarments[0]?.name;
-                    document.getElementById('spkFabricMaterial').value = s.fabricMaterial || appData.masterFabrics[0]?.name;
-                    document.getElementById('spkFabricColor').value = s.fabricColor;
-                    document.getElementById('spkPrintMethod').value = s.printMethod;
-                    document.getElementById('sizeS').value = s.sizes?.S || 0;
-                    document.getElementById('sizeM').value = s.sizes?.M || 0;
-                    document.getElementById('sizeL').value = s.sizes?.L || 0;
-                    document.getElementById('sizeXL').value = s.sizes?.XL || 0;
-                    document.getElementById('sizeXXL').value = s.sizes?.XXL || 0;
-                    document.getElementById('sizeXXXL').value = s.sizes?.XXXL || 0;
-                    document.getElementById('sizeCustom').value = s.sizes?.custom || 0;
-                    document.getElementById('spkPricePerPcs').value = s.pricePerPcs;
-                    document.getElementById('spkOpex').value = s.opex;
-                    document.getElementById('spkUseCommission').value = s.useCommission || 'yes';
-                    document.getElementById('spkIncentivePerPcs').value = s.incentivePerPcs || 0;
-                    document.getElementById('spkDp').value = s.dp;
-                    document.getElementById('spkDpAccount').value = s.dpAccount;
-                    document.getElementById('spkDesignFile').value = s.designFile || '';
-                    document.getElementById('spkNotes').value = s.notes;
-                    document.getElementById('spkStatus').value = s.status;
+                    if (spkIdEl) spkIdEl.value = s.id;
+                    const sn = document.getElementById('spkNumber'); if (sn) sn.value = s.number;
+                    if (spkDateInEl) spkDateInEl.value = s.dateIn;
+                    const sc = document.getElementById('spkClient'); if (sc) sc.value = s.client;
+                    const sp = document.getElementById('spkPhone'); if (sp) sp.value = s.phone;
+                    const sd = document.getElementById('spkDeadline'); if (sd) sd.value = s.deadline;
+                    const sa = document.getElementById('spkAddress'); if (sa) sa.value = s.address;
+                    if (selectGarment) selectGarment.value = s.garmentType || appData.masterGarments[0]?.name;
+                    if (selectFabricMat) selectFabricMat.value = s.fabricMaterial || appData.masterFabrics[0]?.name;
+                    const sfc = document.getElementById('spkFabricColor'); if (sfc) sfc.value = s.fabricColor;
+                    if (selectPrint) selectPrint.value = s.printMethod;
+                    const sS = document.getElementById('sizeS'); if (sS) sS.value = s.sizes?.S || 0;
+                    const sM = document.getElementById('sizeM'); if (sM) sM.value = s.sizes?.M || 0;
+                    const sL = document.getElementById('sizeL'); if (sL) sL.value = s.sizes?.L || 0;
+                    const sXL = document.getElementById('sizeXL'); if (sXL) sXL.value = s.sizes?.XL || 0;
+                    const sXXL = document.getElementById('sizeXXL'); if (sXXL) sXXL.value = s.sizes?.XXL || 0;
+                    const sXXXL = document.getElementById('sizeXXXL'); if (sXXXL) sXXXL.value = s.sizes?.XXXL || 0;
+                    const sC = document.getElementById('sizeCustom'); if (sC) sC.value = s.sizes?.custom || 0;
+                    const spp = document.getElementById('spkPricePerPcs'); if (spp) spp.value = s.pricePerPcs;
+                    const sox = document.getElementById('spkOpex'); if (sox) sox.value = s.opex;
+                    const suc = document.getElementById('spkUseCommission'); if (suc) suc.value = s.useCommission || 'yes';
+                    const sip = document.getElementById('spkIncentivePerPcs'); if (sip) sip.value = s.incentivePerPcs || 0;
+                    const sdp = document.getElementById('spkDp'); if (sdp) sdp.value = s.dp;
+                    const sda = document.getElementById('spkDpAccount'); if (sda) sda.value = s.dpAccount;
+                    const sdf = document.getElementById('spkDesignFile'); if (sdf) sdf.value = s.designFile || '';
+                    const sno = document.getElementById('spkNotes'); if (sno) sno.value = s.notes;
+                    const sst = document.getElementById('spkStatus'); if (sst) sst.value = s.status;
                 }
             } else {
                 onGarmentTypeChanged();
             }
             calculateSPKEstimates();
-            document.getElementById('spkModal').classList.remove('hidden');
+            const sm = document.getElementById('spkModal');
+            if (sm) sm.classList.remove('hidden');
         };
-        window.closeSPKModal = function() { document.getElementById('spkModal').classList.add('hidden'); };
+
+        window.closeSPKModal = function() {
+            const sm = document.getElementById('spkModal');
+            if (sm) sm.classList.add('hidden');
+        };
 
         window.onGarmentTypeChanged = function() {
-            let gName = document.getElementById('spkGarmentType').value;
+            let gName = document.getElementById('spkGarmentType')?.value;
             let gm = appData.masterGarments.find(g => g.name === gName);
             if (gm) {
-                document.getElementById('spkPricePerPcs').value = gm.basePrice;
+                const spp = document.getElementById('spkPricePerPcs');
+                if (spp) spp.value = gm.basePrice;
             }
             calculateSPKEstimates();
         };
 
         window.calculateSPKEstimates = function() {
             let tempItem = {
-                garmentType: document.getElementById('spkGarmentType').value,
-                fabricMaterial: document.getElementById('spkFabricMaterial').value,
-                printMethod: document.getElementById('spkPrintMethod').value,
+                garmentType: document.getElementById('spkGarmentType')?.value,
+                fabricMaterial: document.getElementById('spkFabricMaterial')?.value,
+                printMethod: document.getElementById('spkPrintMethod')?.value,
                 sizes: {
-                    S: document.getElementById('sizeS').value,
-                    M: document.getElementById('sizeM').value,
-                    L: document.getElementById('sizeL').value,
-                    XL: document.getElementById('sizeXL').value,
-                    XXL: document.getElementById('sizeXXL').value,
-                    XXXL: document.getElementById('sizeXXXL').value,
-                    custom: document.getElementById('sizeCustom').value
+                    S: document.getElementById('sizeS')?.value,
+                    M: document.getElementById('sizeM')?.value,
+                    L: document.getElementById('sizeL')?.value,
+                    XL: document.getElementById('sizeXL')?.value,
+                    XXL: document.getElementById('sizeXXL')?.value,
+                    XXXL: document.getElementById('sizeXXXL')?.value,
+                    custom: document.getElementById('sizeCustom')?.value
                 },
-                pricePerPcs: document.getElementById('spkPricePerPcs').value,
-                opex: document.getElementById('spkOpex').value,
-                useCommission: document.getElementById('spkUseCommission').value,
-                incentivePerPcs: document.getElementById('spkIncentivePerPcs').value
+                pricePerPcs: document.getElementById('spkPricePerPcs')?.value,
+                opex: document.getElementById('spkOpex')?.value,
+                useCommission: document.getElementById('spkUseCommission')?.value,
+                incentivePerPcs: document.getElementById('spkIncentivePerPcs')?.value
             };
             let calc = calcSpkValues(tempItem);
-            document.getElementById('sumQty').innerText = calc.totalQty;
-            document.getElementById('sumTagihan').innerText = formatRupiah(calc.tagihan);
-            document.getElementById('sumKomisi').innerText = formatRupiah(calc.commission);
-            document.getElementById('sumInsentif').innerText = formatRupiah(calc.incentive);
-            document.getElementById('sumTotalGaji').innerText = formatRupiah(calc.totalSalary);
-            document.getElementById('sumCogsPcs').innerText = formatRupiah(calc.cogsPcs);
-            document.getElementById('sumCogs').innerText = formatRupiah(calc.totalCogsOverall);
-            document.getElementById('sumNetProfit').innerText = formatRupiah(calc.netProfit);
-            document.getElementById('spkCalculatedFabricInfo').innerText = `Estimasi Kain Diperlukan: ${calc.fabricKg} Kg`;
+            
+            const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+            setTxt('sumQty', calc.totalQty);
+            setTxt('sumTagihan', formatRupiah(calc.tagihan));
+            setTxt('sumKomisi', formatRupiah(calc.commission));
+            setTxt('sumInsentif', formatRupiah(calc.incentive));
+            setTxt('sumTotalGaji', formatRupiah(calc.totalSalary));
+            setTxt('sumCogsPcs', formatRupiah(calc.cogsPcs));
+            setTxt('sumCogs', formatRupiah(calc.totalCogsOverall));
+            setTxt('sumNetProfit', formatRupiah(calc.netProfit));
+            setTxt('spkCalculatedFabricInfo', `Estimasi Kain Diperlukan: ${calc.fabricKg} Kg`);
         };
 
         window.saveSPK = function(e) {
             e.preventDefault();
-            let id = document.getElementById('spkId').value || 'spk-' + Date.now();
+            let id = document.getElementById('spkId')?.value || 'spk-' + Date.now();
             let newSpk = {
                 id,
-                number: document.getElementById('spkNumber').value,
-                dateIn: document.getElementById('spkDateIn').value,
-                client: document.getElementById('spkClient').value,
-                phone: document.getElementById('spkPhone').value,
-                deadline: document.getElementById('spkDeadline').value,
-                address: document.getElementById('spkAddress').value,
-                garmentType: document.getElementById('spkGarmentType').value,
-                fabricMaterial: document.getElementById('spkFabricMaterial').value,
-                fabricColor: document.getElementById('spkFabricColor').value,
-                printMethod: document.getElementById('spkPrintMethod').value,
+                number: document.getElementById('spkNumber')?.value,
+                dateIn: document.getElementById('spkDateIn')?.value,
+                client: document.getElementById('spkClient')?.value,
+                phone: document.getElementById('spkPhone')?.value,
+                deadline: document.getElementById('spkDeadline')?.value,
+                address: document.getElementById('spkAddress')?.value,
+                garmentType: document.getElementById('spkGarmentType')?.value,
+                fabricMaterial: document.getElementById('spkFabricMaterial')?.value,
+                fabricColor: document.getElementById('spkFabricColor')?.value,
+                printMethod: document.getElementById('spkPrintMethod')?.value,
                 sizes: {
-                    S: parseInt(document.getElementById('sizeS').value)||0,
-                    M: parseInt(document.getElementById('sizeM').value)||0,
-                    L: parseInt(document.getElementById('sizeL').value)||0,
-                    XL: parseInt(document.getElementById('sizeXL').value)||0,
-                    XXL: parseInt(document.getElementById('sizeXXL').value)||0,
-                    XXXL: parseInt(document.getElementById('sizeXXXL').value)||0,
-                    custom: parseInt(document.getElementById('sizeCustom').value)||0
+                    S: parseInt(document.getElementById('sizeS')?.value)||0,
+                    M: parseInt(document.getElementById('sizeM')?.value)||0,
+                    L: parseInt(document.getElementById('sizeL')?.value)||0,
+                    XL: parseInt(document.getElementById('sizeXL')?.value)||0,
+                    XXL: parseInt(document.getElementById('sizeXXL')?.value)||0,
+                    XXXL: parseInt(document.getElementById('sizeXXXL')?.value)||0,
+                    custom: parseInt(document.getElementById('sizeCustom')?.value)||0
                 },
-                pricePerPcs: parseFloat(document.getElementById('spkPricePerPcs').value),
-                opex: parseFloat(document.getElementById('spkOpex').value),
-                useCommission: document.getElementById('spkUseCommission').value,
-                incentivePerPcs: parseFloat(document.getElementById('spkIncentivePerPcs').value),
-                dp: parseFloat(document.getElementById('spkDp').value) || 0,
-                dpAccount: document.getElementById('spkDpAccount').value,
-                addToSalary: document.getElementById('spkAddToSalary').checked,
-                designFile: document.getElementById('spkDesignFile').value,
-                notes: document.getElementById('spkNotes').value,
-                status: document.getElementById('spkStatus').value
+                pricePerPcs: parseFloat(document.getElementById('spkPricePerPcs')?.value),
+                opex: parseFloat(document.getElementById('spkOpex')?.value),
+                useCommission: document.getElementById('spkUseCommission')?.value,
+                incentivePerPcs: parseFloat(document.getElementById('spkIncentivePerPcs')?.value),
+                dp: parseFloat(document.getElementById('spkDp')?.value) || 0,
+                dpAccount: document.getElementById('spkDpAccount')?.value,
+                addToSalary: document.getElementById('spkAddToSalary')?.checked,
+                designFile: document.getElementById('spkDesignFile')?.value,
+                notes: document.getElementById('spkNotes')?.value,
+                status: document.getElementById('spkStatus')?.value
             };
 
             let calc = calcSpkValues(newSpk);
@@ -1497,22 +1536,27 @@
                       `Catatan: ${s.notes || '-'}\n\n` +
                       `Mohon konfirmasi jika data di atas sudah sesuai ya Kak. Terima kasih! 🙏`;
 
-            document.getElementById('waMessageText').value = msg;
+            const wam = document.getElementById('waMessageText');
+            if (wam) wam.value = msg;
             let cleanPhone = s.phone.replace(/\D/g, '');
             if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
-            document.getElementById('waSendBtn').href = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
-            document.getElementById('waModal').classList.remove('hidden');
+            const wsb = document.getElementById('waSendBtn');
+            if (wsb) wsb.href = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+            const wamod = document.getElementById('waModal');
+            if (wamod) wamod.classList.remove('hidden');
         };
 
         window.closeWAModal = function() {
-            document.getElementById('waModal').classList.add('hidden');
+            const wamod = document.getElementById('waModal');
+            if (wamod) wamod.classList.add('hidden');
         };
 
         function renderSPK() {
-            let filterStatus = document.getElementById('filterSpkStatus').value;
+            let filterStatus = document.getElementById('filterSpkStatus')?.value || '';
             let filtered = appData.spk.filter(s => !filterStatus || s.status === filterStatus);
 
             let tbody = document.getElementById('spkTableBody');
+            if (!tbody) return;
             tbody.innerHTML = filtered.map(s => {
                 let calc = calcSpkValues(s);
                 let kekurangan = calc.tagihan - s.dp;
@@ -1550,54 +1594,64 @@
                     </tr>
                 `;
             }).join('');
-            lucide.createIcons();
+            try { lucide.createIcons(); } catch(e){}
         }
 
         window.openDesignModal = function(url, title) {
-            document.getElementById('designModalTitle').innerText = `Design: ${title}`;
-            document.getElementById('designModalContent').innerHTML = `<img src="${url}" class="max-w-full max-h-[65vh] object-contain rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">`;
-            document.getElementById('designModal').classList.remove('hidden');
+            const dmt = document.getElementById('designModalTitle');
+            if (dmt) dmt.innerText = `Design: ${title}`;
+            const dmc = document.getElementById('designModalContent');
+            if (dmc) dmc.innerHTML = `<img src="${url}" class="max-w-full max-h-[65vh] object-contain rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">`;
+            const dm = document.getElementById('designModal');
+            if (dm) dm.classList.remove('hidden');
         };
 
         window.closeDesignModal = function() {
-            document.getElementById('designModal').classList.add('hidden');
+            const dm = document.getElementById('designModal');
+            if (dm) dm.classList.add('hidden');
         };
 
         window.openGarmentModal = function(id = null) {
-            document.getElementById('gmId').value = '';
-            document.getElementById('gmName').value = '';
-            document.getElementById('gmBasePrice').value = '75000';
-            document.getElementById('gmSewRate').value = '10000';
-            document.getElementById('gmCutRate').value = '2500';
-            document.getElementById('gmQcRate').value = '1500';
-            document.getElementById('garmentModalTitle').innerText = 'Tambah Jenis Pakaian';
+            const setVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+            setVal('gmId', '');
+            setVal('gmName', '');
+            setVal('gmBasePrice', '75000');
+            setVal('gmSewRate', '10000');
+            setVal('gmCutRate', '2500');
+            setVal('gmQcRate', '1500');
+            const gmt = document.getElementById('garmentModalTitle');
+            if (gmt) gmt.innerText = 'Tambah Jenis Pakaian';
 
             if (id) {
                 let gm = appData.masterGarments.find(g => g.id === id);
                 if (gm) {
-                    document.getElementById('gmId').value = gm.id;
-                    document.getElementById('gmName').value = gm.name;
-                    document.getElementById('gmBasePrice').value = gm.basePrice;
-                    document.getElementById('gmSewRate').value = gm.sewRate;
-                    document.getElementById('gmCutRate').value = gm.cutRate;
-                    document.getElementById('gmQcRate').value = gm.qcRate;
-                    document.getElementById('garmentModalTitle').innerText = 'Edit Jenis Pakaian';
+                    setVal('gmId', gm.id);
+                    setVal('gmName', gm.name);
+                    setVal('gmBasePrice', gm.basePrice);
+                    setVal('gmSewRate', gm.sewRate);
+                    setVal('gmCutRate', gm.cutRate);
+                    setVal('gmQcRate', gm.qcRate);
+                    if (gmt) gmt.innerText = 'Edit Jenis Pakaian';
                 }
             }
-            document.getElementById('garmentModal').classList.remove('hidden');
+            const gmModal = document.getElementById('garmentModal');
+            if (gmModal) gmModal.classList.remove('hidden');
         };
-        window.closeGarmentModal = function() { document.getElementById('garmentModal').classList.add('hidden'); };
+        window.closeGarmentModal = function() {
+            const gmModal = document.getElementById('garmentModal');
+            if (gmModal) gmModal.classList.add('hidden');
+        };
 
         window.saveGarment = function(e) {
             e.preventDefault();
-            let id = document.getElementById('gmId').value || 'gm-' + Date.now();
+            let id = document.getElementById('gmId')?.value || 'gm-' + Date.now();
             let gm = {
                 id,
-                name: document.getElementById('gmName').value,
-                basePrice: parseFloat(document.getElementById('gmBasePrice').value),
-                sewRate: parseFloat(document.getElementById('gmSewRate').value),
-                cutRate: parseFloat(document.getElementById('gmCutRate').value),
-                qcRate: parseFloat(document.getElementById('gmQcRate').value)
+                name: document.getElementById('gmName')?.value,
+                basePrice: parseFloat(document.getElementById('gmBasePrice')?.value),
+                sewRate: parseFloat(document.getElementById('gmSewRate')?.value),
+                cutRate: parseFloat(document.getElementById('gmCutRate')?.value),
+                qcRate: parseFloat(document.getElementById('gmQcRate')?.value)
             };
             let idx = appData.masterGarments.findIndex(g => g.id === id);
             if (idx >= 0) appData.masterGarments[idx] = gm;
@@ -1614,58 +1668,64 @@
         };
 
         window.openFabricModal = function(id = null) {
-            document.getElementById('fmId').value = '';
-            document.getElementById('fmName').value = '';
-            document.getElementById('fmPricePerKg').value = '85000';
-            document.getElementById('fmRatio').value = '3.5';
-            document.getElementById('consS').value = '1.3';
-            document.getElementById('consM').value = '1.4';
-            document.getElementById('consL').value = '1.5';
-            document.getElementById('consXL').value = '1.6';
-            document.getElementById('consXXL').value = '1.7';
-            document.getElementById('consXXXL').value = '1.8';
-            document.getElementById('consCustom').value = '2.0';
-            document.getElementById('fabricModalTitle').innerText = 'Tambah Jenis Bahan Kain';
+            const setVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+            setVal('fmId', '');
+            setVal('fmName', '');
+            setVal('fmPricePerKg', '85000');
+            setVal('fmRatio', '3.5');
+            setVal('consS', '1.3');
+            setVal('consM', '1.4');
+            setVal('consL', '1.5');
+            setVal('consXL', '1.6');
+            setVal('consXXL', '1.7');
+            setVal('consXXXL', '1.8');
+            setVal('consCustom', '2.0');
+            const fmt = document.getElementById('fabricModalTitle');
+            if (fmt) fmt.innerText = 'Tambah Jenis Bahan Kain';
 
             if (id) {
                 let fm = appData.masterFabrics.find(f => f.id === id);
                 if (fm) {
-                    document.getElementById('fmId').value = fm.id;
-                    document.getElementById('fmName').value = fm.name;
-                    document.getElementById('fmPricePerKg').value = fm.pricePerKg;
-                    document.getElementById('fmRatio').value = fm.ratio;
+                    setVal('fmId', fm.id);
+                    setVal('fmName', fm.name);
+                    setVal('fmPricePerKg', fm.pricePerKg);
+                    setVal('fmRatio', fm.ratio);
                     if (fm.cons) {
-                        document.getElementById('consS').value = fm.cons.S || 1.3;
-                        document.getElementById('consM').value = fm.cons.M || 1.4;
-                        document.getElementById('consL').value = fm.cons.L || 1.5;
-                        document.getElementById('consXL').value = fm.cons.XL || 1.6;
-                        document.getElementById('consXXL').value = fm.cons.XXL || 1.7;
-                        document.getElementById('consXXXL').value = fm.cons.XXXL || 1.8;
-                        document.getElementById('consCustom').value = fm.cons.custom || 2.0;
+                        setVal('consS', fm.cons.S || 1.3);
+                        setVal('consM', fm.cons.M || 1.4);
+                        setVal('consL', fm.cons.L || 1.5);
+                        setVal('consXL', fm.cons.XL || 1.6);
+                        setVal('consXXL', fm.cons.XXL || 1.7);
+                        setVal('consXXXL', fm.cons.XXXL || 1.8);
+                        setVal('consCustom', fm.cons.custom || 2.0);
                     }
-                    document.getElementById('fabricModalTitle').innerText = 'Edit Jenis Bahan Kain';
+                    if (fmt) fmt.innerText = 'Edit Jenis Bahan Kain';
                 }
             }
-            document.getElementById('fabricModal').classList.remove('hidden');
+            const fmModal = document.getElementById('fabricModal');
+            if (fmModal) fmModal.classList.remove('hidden');
         };
-        window.closeFabricModal = function() { document.getElementById('fabricModal').classList.add('hidden'); };
+        window.closeFabricModal = function() {
+            const fmModal = document.getElementById('fabricModal');
+            if (fmModal) fmModal.classList.add('hidden');
+        };
 
         window.saveFabricMaterial = function(e) {
             e.preventDefault();
-            let id = document.getElementById('fmId').value || 'fm-' + Date.now();
+            let id = document.getElementById('fmId')?.value || 'fm-' + Date.now();
             let fm = {
                 id,
-                name: document.getElementById('fmName').value,
-                pricePerKg: parseFloat(document.getElementById('fmPricePerKg').value),
-                ratio: parseFloat(document.getElementById('fmRatio').value),
+                name: document.getElementById('fmName')?.value,
+                pricePerKg: parseFloat(document.getElementById('fmPricePerKg')?.value),
+                ratio: parseFloat(document.getElementById('fmRatio')?.value),
                 cons: {
-                    S: parseFloat(document.getElementById('consS').value),
-                    M: parseFloat(document.getElementById('consM').value),
-                    L: parseFloat(document.getElementById('consL').value),
-                    XL: parseFloat(document.getElementById('consXL').value),
-                    XXL: parseFloat(document.getElementById('consXXL').value),
-                    XXXL: parseFloat(document.getElementById('consXXXL').value),
-                    custom: parseFloat(document.getElementById('consCustom').value)
+                    S: parseFloat(document.getElementById('consS')?.value),
+                    M: parseFloat(document.getElementById('consM')?.value),
+                    L: parseFloat(document.getElementById('consL')?.value),
+                    XL: parseFloat(document.getElementById('consXL')?.value),
+                    XXL: parseFloat(document.getElementById('consXXL')?.value),
+                    XXXL: parseFloat(document.getElementById('consXXXL')?.value),
+                    custom: parseFloat(document.getElementById('consCustom')?.value)
                 }
             };
             let idx = appData.masterFabrics.findIndex(f => f.id === id);
@@ -1684,63 +1744,73 @@
 
         function renderMasterFabricAndGarment() {
             let garmentTbody = document.getElementById('garmentTableBody');
-            garmentTbody.innerHTML = appData.masterGarments.map(g => `
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td class="p-3 font-bold text-slate-900 dark:text-white">${g.name}</td>
-                    <td class="p-3 font-bold text-emerald-600">${formatRupiah(g.basePrice)}</td>
-                    <td class="p-3 text-slate-500">J: ${formatRupiah(g.sewRate)} | P: ${formatRupiah(g.cutRate)} | Q: ${formatRupiah(g.qcRate)}</td>
-                    <td class="p-3 text-right space-x-1 whitespace-nowrap">
-                        <button onclick="openGarmentModal('${g.id}')" class="text-indigo-600 p-1" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i></button>
-                        <button onclick="deleteGarment('${g.id}')" class="text-rose-600 p-1" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i></button>
-                    </td>
-                </tr>
-            `).join('');
+            if (garmentTbody) {
+                garmentTbody.innerHTML = appData.masterGarments.map(g => `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <td class="p-3 font-bold text-slate-900 dark:text-white">${g.name}</td>
+                        <td class="p-3 font-bold text-emerald-600">${formatRupiah(g.basePrice)}</td>
+                        <td class="p-3 text-slate-500">J: ${formatRupiah(g.sewRate)} | P: ${formatRupiah(g.cutRate)} | Q: ${formatRupiah(g.qcRate)}</td>
+                        <td class="p-3 text-right space-x-1 whitespace-nowrap">
+                            <button onclick="openGarmentModal('${g.id}')" class="text-indigo-600 p-1" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i></button>
+                            <button onclick="deleteGarment('${g.id}')" class="text-rose-600 p-1" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
 
             let fabricTbody = document.getElementById('fabricTableBody');
-            fabricTbody.innerHTML = appData.masterFabrics.map(f => `
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td class="p-3 font-bold text-slate-900 dark:text-white">${f.name}</td>
-                    <td class="p-3">${formatRupiah(f.pricePerKg)}/kg</td>
-                    <td class="p-3">1kg = ${f.ratio}m</td>
-                    <td class="p-3 text-right space-x-1 whitespace-nowrap">
-                        <button onclick="openFabricModal('${f.id}')" class="text-indigo-600 p-1" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i></button>
-                        <button onclick="deleteFabricMaterial('${f.id}')" class="text-rose-600 p-1" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i></button>
-                    </td>
-                </tr>
-            `).join('');
-            lucide.createIcons();
+            if (fabricTbody) {
+                fabricTbody.innerHTML = appData.masterFabrics.map(f => `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <td class="p-3 font-bold text-slate-900 dark:text-white">${f.name}</td>
+                        <td class="p-3">${formatRupiah(f.pricePerKg)}/kg</td>
+                        <td class="p-3">1kg = ${f.ratio}m</td>
+                        <td class="p-3 text-right space-x-1 whitespace-nowrap">
+                            <button onclick="openFabricModal('${f.id}')" class="text-indigo-600 p-1" title="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i></button>
+                            <button onclick="deleteFabricMaterial('${f.id}')" class="text-rose-600 p-1" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+            try { lucide.createIcons(); } catch(e){}
         }
 
         window.openMasterPrintModal = function(id = null) {
-            document.getElementById('mpId').value = '';
-            document.getElementById('mpCode').value = '';
-            document.getElementById('mpName').value = '';
-            document.getElementById('mpUnit').value = 'pcs';
-            document.getElementById('mpPrice').value = '7500';
-            document.getElementById('masterPrintModalTitle').innerText = 'Tambah Metode Cetak';
+            const setVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+            setVal('mpId', '');
+            setVal('mpCode', '');
+            setVal('mpName', '');
+            setVal('mpUnit', 'pcs');
+            setVal('mpPrice', '7500');
+            const mpmt = document.getElementById('masterPrintModalTitle');
+            if (mpmt) mpmt.innerText = 'Tambah Metode Cetak';
 
             if (id) {
                 let mp = appData.masterPrint.find(p => p.id === id);
                 if (mp) {
-                    document.getElementById('mpId').value = mp.id;
-                    document.getElementById('mpCode').value = mp.code;
-                    document.getElementById('mpName').value = mp.name;
-                    document.getElementById('mpUnit').value = mp.unit || 'pcs';
-                    document.getElementById('mpPrice').value = mp.price;
-                    document.getElementById('masterPrintModalTitle').innerText = 'Edit Metode Cetak';
+                    setVal('mpId', mp.id);
+                    setVal('mpCode', mp.code);
+                    setVal('mpName', mp.name);
+                    setVal('mpUnit', mp.unit || 'pcs');
+                    setVal('mpPrice', mp.price);
+                    if (mpmt) mpmt.innerText = 'Edit Metode Cetak';
                 }
             }
-            document.getElementById('masterPrintModal').classList.remove('hidden');
+            const mpModal = document.getElementById('masterPrintModal');
+            if (mpModal) mpModal.classList.remove('hidden');
         };
-        window.closeMasterPrintModal = function() { document.getElementById('masterPrintModal').classList.add('hidden'); };
+        window.closeMasterPrintModal = function() {
+            const mpModal = document.getElementById('masterPrintModal');
+            if (mpModal) mpModal.classList.add('hidden');
+        };
 
         window.saveMasterPrint = function(e) {
             e.preventDefault();
-            let id = document.getElementById('mpId').value || 'mp-' + Date.now();
-            let code = document.getElementById('mpCode').value.toLowerCase().replace(/\s+/g, '_');
-            let name = document.getElementById('mpName').value;
-            let unit = document.getElementById('mpUnit').value;
-            let price = parseFloat(document.getElementById('mpPrice').value);
+            let id = document.getElementById('mpId')?.value || 'mp-' + Date.now();
+            let code = (document.getElementById('mpCode')?.value || '').toLowerCase().replace(/\s+/g, '_');
+            let name = document.getElementById('mpName')?.value;
+            let unit = document.getElementById('mpUnit')?.value;
+            let price = parseFloat(document.getElementById('mpPrice')?.value);
 
             let existingIdx = appData.masterPrint.findIndex(p => p.id === id);
             if (existingIdx >= 0) {
@@ -1754,6 +1824,7 @@
 
         function renderMasterPrint() {
             let tbody = document.getElementById('masterPrintTableBody');
+            if (!tbody) return;
             tbody.innerHTML = appData.masterPrint.map(p => {
                 let totalSpent = appData.spk.reduce((acc, s) => {
                     if (s.printMethod === p.code) {
@@ -1777,7 +1848,7 @@
                     </tr>
                 `;
             }).join('');
-            lucide.createIcons();
+            try { lucide.createIcons(); } catch(e){}
         }
 
         window.deleteMasterPrint = function(id) {
@@ -1786,19 +1857,24 @@
         };
 
         window.openInventoryModal = function() {
-            document.getElementById('inventoryForm')?.reset();
-            document.getElementById('inventoryModal').classList.remove('hidden');
+            const frm = document.getElementById('inventoryForm');
+            if (frm) frm.reset();
+            const invModal = document.getElementById('inventoryModal');
+            if (invModal) invModal.classList.remove('hidden');
         };
-        window.closeInventoryModal = function() { document.getElementById('inventoryModal').classList.add('hidden'); };
+        window.closeInventoryModal = function() {
+            const invModal = document.getElementById('inventoryModal');
+            if (invModal) invModal.classList.add('hidden');
+        };
 
         window.saveInventoryManual = function(e) {
             e.preventDefault();
             let item = {
                 id: 'inv-' + Date.now(),
-                name: document.getElementById('invName').value,
-                category: document.getElementById('invCategory').value,
-                stock: parseFloat(document.getElementById('invStock').value),
-                min: parseFloat(document.getElementById('invMin').value)
+                name: document.getElementById('invName')?.value,
+                category: document.getElementById('invCategory')?.value,
+                stock: parseFloat(document.getElementById('invStock')?.value),
+                min: parseFloat(document.getElementById('invMin')?.value)
             };
             appData.inventory.push(item);
             syncToCloud();
@@ -1807,6 +1883,7 @@
 
         function renderInventory() {
             let tbody = document.getElementById('inventoryTableBody');
+            if (!tbody) return;
             tbody.innerHTML = appData.inventory.map(i => {
                 let isMinus = i.stock < 0;
                 let isLow = i.stock <= i.min && !isMinus;
@@ -1826,7 +1903,7 @@
                     </tr>
                 `;
             }).join('');
-            lucide.createIcons();
+            try { lucide.createIcons(); } catch(e){}
         }
 
         window.deleteInventory = function(id) {
@@ -1835,21 +1912,31 @@
         };
 
         window.openFinanceModal = function() {
-            document.getElementById('financeForm').reset();
-            document.getElementById('finDate').value = new Date().toISOString().split('T')[0];
+            const frm = document.getElementById('financeForm');
+            if (frm) frm.reset();
+            const fd = document.getElementById('finDate');
+            if (fd) fd.value = new Date().toISOString().split('T')[0];
             
             let sel = document.getElementById('finSalaryId');
-            let unpaidSalaries = appData.salaries.filter(s => s.status !== 'Lunas');
-            sel.innerHTML = '<option value="">-- Pilih Gaji Karyawan --</option>' + unpaidSalaries.map(s => `<option value="${s.id}">${s.name} (${s.role}) - Rp ${s.amount.toLocaleString('id-ID')}</option>`).join('');
+            if (sel) {
+                let unpaidSalaries = appData.salaries.filter(s => s.status !== 'Lunas');
+                sel.innerHTML = '<option value="">-- Pilih Gaji Karyawan --</option>' + unpaidSalaries.map(s => `<option value="${s.id}">${s.name} (${s.role}) - Rp ${s.amount.toLocaleString('id-ID')}</option>`).join('');
+            }
             
-            document.getElementById('salaryPaymentSelectContainer').classList.add('hidden');
-            document.getElementById('financeModal').classList.remove('hidden');
+            const ssc = document.getElementById('salaryPaymentSelectContainer');
+            if (ssc) ssc.classList.add('hidden');
+            const finMod = document.getElementById('financeModal');
+            if (finMod) finMod.classList.remove('hidden');
         };
-        window.closeFinanceModal = function() { document.getElementById('financeModal').classList.add('hidden'); };
+        window.closeFinanceModal = function() {
+            const finMod = document.getElementById('financeModal');
+            if (finMod) finMod.classList.add('hidden');
+        };
 
         window.onFinCategoryChanged = function() {
-            let cat = document.getElementById('finCategory').value;
+            let cat = document.getElementById('finCategory')?.value;
             let salContainer = document.getElementById('salaryPaymentSelectContainer');
+            if (!salContainer) return;
             if (cat === 'Gaji Karyawan') {
                 salContainer.classList.remove('hidden');
             } else {
@@ -1858,24 +1945,32 @@
         };
 
         window.onSalarySelectedForPayment = function() {
-            let salId = document.getElementById('finSalaryId').value;
+            let salId = document.getElementById('finSalaryId')?.value;
             if (salId) {
                 let sal = appData.salaries.find(s => s.id === salId);
                 if (sal) {
-                    document.getElementById('finAmount').value = sal.amount;
-                    document.getElementById('finDesc').value = `Pembayaran Gaji: ${sal.name}`;
+                    const fa = document.getElementById('finAmount');
+                    if (fa) fa.value = sal.amount;
+                    const fd = document.getElementById('finDesc');
+                    if (fd) fd.value = `Pembayaran Gaji: ${sal.name}`;
                 }
             }
         };
 
-        window.openTransferModal = function() { document.getElementById('transferModal').classList.remove('hidden'); };
-        window.closeTransferModal = function() { document.getElementById('transferModal').classList.add('hidden'); };
+        window.openTransferModal = function() {
+            const tm = document.getElementById('transferModal');
+            if (tm) tm.classList.remove('hidden');
+        };
+        window.closeTransferModal = function() {
+            const tm = document.getElementById('transferModal');
+            if (tm) tm.classList.add('hidden');
+        };
 
         window.executeTransfer = function(e) {
             e.preventDefault();
-            let from = document.getElementById('trFrom').value;
-            let to = document.getElementById('trTo').value;
-            let amount = parseFloat(document.getElementById('trAmount').value);
+            let from = document.getElementById('trFrom')?.value;
+            let to = document.getElementById('trTo')?.value;
+            let amount = parseFloat(document.getElementById('trAmount')?.value) || 0;
 
             if (appData.balances[from] < amount) {
                 showModal('Gagal', 'Saldo akun asal tidak mencukupi!', () => {});
@@ -1901,16 +1996,16 @@
 
         window.saveFinance = function(e) {
             e.preventDefault();
-            let category = document.getElementById('finCategory').value;
-            let amount = parseFloat(document.getElementById('finAmount').value);
-            let salId = document.getElementById('finSalaryId').value;
+            let category = document.getElementById('finCategory')?.value;
+            let amount = parseFloat(document.getElementById('finAmount')?.value) || 0;
+            let salId = document.getElementById('finSalaryId')?.value;
 
             let tx = {
                 id: 'fin-' + Date.now(),
-                date: document.getElementById('finDate').value,
-                desc: document.getElementById('finDesc').value,
+                date: document.getElementById('finDate')?.value,
+                desc: document.getElementById('finDesc')?.value,
                 account: 'gopay',
-                type: document.getElementById('finType').value,
+                type: document.getElementById('finType')?.value,
                 category: category,
                 amount: amount,
                 salaryId: (category === 'Gaji Karyawan' ? salId : null)
@@ -1955,8 +2050,8 @@
         };
 
         function renderFinance() {
-            let start = document.getElementById('filterStartDate').value;
-            let end = document.getElementById('filterEndDate').value;
+            let start = document.getElementById('filterStartDate')?.value || '';
+            let end = document.getElementById('filterEndDate')?.value || '';
 
             let filtered = appData.finance.filter(f => {
                 if (start && f.date < start) return false;
@@ -1967,12 +2062,14 @@
             let totalIn = filtered.filter(f => f.type === 'Masuk').reduce((a,b) => a + b.amount, 0);
             let totalOut = filtered.filter(f => f.type === 'Keluar').reduce((a,b) => a + b.amount, 0);
 
-            document.getElementById('finMandiriBal').innerText = formatRupiah(appData.balances.mandiri);
-            document.getElementById('finGopayBal').innerText = formatRupiah(appData.balances.gopay);
-            document.getElementById('finTotalIn').innerText = formatRupiah(totalIn);
-            document.getElementById('finTotalOut').innerText = formatRupiah(totalOut);
+            const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+            setTxt('finMandiriBal', formatRupiah(appData.balances.mandiri));
+            setTxt('finGopayBal', formatRupiah(appData.balances.gopay));
+            setTxt('finTotalIn', formatRupiah(totalIn));
+            setTxt('finTotalOut', formatRupiah(totalOut));
 
             let tbody = document.getElementById('financeTableBody');
+            if (!tbody) return;
             tbody.innerHTML = filtered.map(f => `
                 <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-4 text-slate-400">${f.date}</td>
@@ -1985,12 +2082,13 @@
                     </td>
                 </tr>
             `).join('');
-            lucide.createIcons();
+            try { lucide.createIcons(); } catch(e){}
         }
 
         function renderRevenue() {
             let totTagihan = 0, totOpex = 0, totGaji = 0, totCogs = 0, totNet = 0;
             let tbody = document.getElementById('revenueTableBody');
+            if (!tbody) return;
 
             tbody.innerHTML = appData.spk.map(s => {
                 let calc = calcSpkValues(s);
@@ -2012,23 +2110,30 @@
                 `;
             }).join('');
 
-            document.getElementById('revTotalTagihan').innerText = formatRupiah(totTagihan);
-            document.getElementById('revTotalOpex').innerText = formatRupiah(totOpex);
-            document.getElementById('revTotalGaji').innerText = formatRupiah(totGaji);
-            document.getElementById('revTotalCogs').innerText = formatRupiah(totCogs);
-            document.getElementById('revTotalNet').innerText = formatRupiah(totNet);
+            const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+            setTxt('revTotalTagihan', formatRupiah(totTagihan));
+            setTxt('revTotalOpex', formatRupiah(totOpex));
+            setTxt('revTotalGaji', formatRupiah(totGaji));
+            setTxt('revTotalCogs', formatRupiah(totCogs));
+            setTxt('revTotalNet', formatRupiah(totNet));
         }
 
-        window.openSalaryModal = function() { document.getElementById('salaryModal').classList.remove('hidden'); };
-        window.closeSalaryModal = function() { document.getElementById('salaryModal').classList.add('hidden'); };
+        window.openSalaryModal = function() {
+            const sm = document.getElementById('salaryModal');
+            if (sm) sm.classList.remove('hidden');
+        };
+        window.closeSalaryModal = function() {
+            const sm = document.getElementById('salaryModal');
+            if (sm) sm.classList.add('hidden');
+        };
 
         window.saveSalaryManual = function(e) {
             e.preventDefault();
             appData.salaries.push({
                 id: 'sal-' + Date.now(),
-                name: document.getElementById('salName').value,
-                role: document.getElementById('salRole').value,
-                amount: parseFloat(document.getElementById('salAmount').value),
+                name: document.getElementById('salName')?.value,
+                role: document.getElementById('salRole')?.value,
+                amount: parseFloat(document.getElementById('salAmount')?.value) || 0,
                 status: 'Belum Dibayar'
             });
             syncToCloud();
@@ -2037,6 +2142,7 @@
 
         function renderSalaries() {
             let tbody = document.getElementById('salaryTableBody');
+            if (!tbody) return;
             tbody.innerHTML = appData.salaries.map(s => `
                 <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td class="p-4 font-medium">${s.name}</td>
@@ -2048,7 +2154,7 @@
                     </td>
                 </tr>
             `).join('');
-            lucide.createIcons();
+            try { lucide.createIcons(); } catch(e){}
         }
 
         window.toggleSalaryStatus = function(id) {
@@ -2065,7 +2171,8 @@
 
         setInterval(() => {
             const now = new Date();
-            document.getElementById('currentDateTime').innerText = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const cdt = document.getElementById('currentDateTime');
+            if (cdt) cdt.innerText = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         }, 1000);
     </script>
 </body>
