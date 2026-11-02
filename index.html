@@ -1024,29 +1024,38 @@
         window.renderSalaries = renderSalaries;
         window.renderAll = renderAll;
 
-        // Muat data dari localStorage terlebih dahulu agar tidak kosong saat refresh
+        // Muat data dari localStorage terlebih dahulu
         loadFromLocalStorage();
 
+        // Lewati Auth Firebase sementara agar tidak error 400 dan data aman lokal
         try {
             db = getFirestore(app);
-            auth = getAuth(app);
-
-            const initAuth = async () => {
-                try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                    userId = auth.currentUser?.uid || 'local_user';
-                    setupRealtimeSync();
-                } catch (authErr) {
-                    console.warn("Auth mode:", authErr);
-                }
-            };
-            initAuth();
+            userId = 'local_user_savelle';
+            setupRealtimeSync();
         } catch (e) {
-            console.warn("Firebase Init Error:", e);
+            console.warn("Running in local-only mode:", e);
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('savelle_app_data_' + appId);
+                if (saved) {
+                    appData = JSON.parse(saved);
+                }
+            } catch (e) {}
+            renderAll();
+        }
+
+        function setupRealtimeSync() {
+            // Karena mode lokal diaktifkan, sinkronisasi diarahkan langsung simpan lokal
+            renderAll();
+        }
+
+        window.syncToCloud = function() {
+            renderAll();
+            try { 
+                localStorage.setItem('savelle_app_data_' + appId, JSON.stringify(appData)); 
+            } catch (e) {}
         }
 
         function loadFromLocalStorage() {
