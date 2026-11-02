@@ -966,15 +966,25 @@
 
     <!-- Firebase & App Script -->
     <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+
+        // Your web app's Firebase configuration
         const firebaseConfig = {
-  apiKey: "AIzaSyCMWd40WW-SeeVpTkav5zOx0IUHNjFtnCI",
-  authDomain: "newposorder-aa240.firebaseapp.com",
-  projectId: "newposorder-aa240",
-  storageBucket: "newposorder-aa240.firebasestorage.app",
-  messagingSenderId: "373712330360",
-  appId: "1:373712330360:web:491fe02cbafa3e4d63578d",
-  measurementId: "G-90QWWJET6C"
-};
+            apiKey: "AIzaSyCMWd40WW-SeeVpTkav5zOx0IUHNjFtnCI",
+            authDomain: "newposorder-aa240.firebaseapp.com",
+            projectId: "newposorder-aa240",
+            storageBucket: "newposorder-aa240.appspot.com",
+            messagingSenderId: "373712330360",
+            appId: "1:373712330360:web:491fe02cbafa3e4d63578d",
+            measurementId: "G-90QWWJET6C"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
         let db, auth, userId = null;
         let salesChartInstance = null;
 
@@ -1014,8 +1024,10 @@
         window.renderSalaries = renderSalaries;
         window.renderAll = renderAll;
 
+        // Muat data dari localStorage terlebih dahulu agar tidak kosong saat refresh
+        loadFromLocalStorage();
+
         try {
-            const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
 
@@ -1026,48 +1038,53 @@
                     } else {
                         await signInAnonymously(auth);
                     }
-                    userId = auth.currentUser?.uid || crypto.randomUUID();
+                    userId = auth.currentUser?.uid || 'local_user';
                     setupRealtimeSync();
                 } catch (authErr) {
-                    loadFromLocalStorage();
+                    console.warn("Auth mode:", authErr);
                 }
             };
             initAuth();
         } catch (e) {
-            loadFromLocalStorage();
+            console.warn("Firebase Init Error:", e);
         }
 
         function loadFromLocalStorage() {
             try {
                 const saved = localStorage.getItem('savelle_app_data_' + appId);
-                if (saved) appData = JSON.parse(saved);
+                if (saved) {
+                    appData = JSON.parse(saved);
+                }
             } catch (e) {}
             renderAll();
         }
 
         function setupRealtimeSync() {
-            if (!db || !userId) { loadFromLocalStorage(); return; }
+            if (!db || !userId) return;
             try {
                 const docRef = doc(db, 'artifacts', appId, 'public_data', 'store_main_v14');
                 onSnapshot(docRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const cloudData = docSnap.data();
                         if (cloudData && cloudData.payload) {
-                            appData = JSON.parse(cloudData.payload);
-                            renderAll();
+                            const parsedCloud = JSON.parse(cloudData.payload);
+                            if (parsedCloud.spk && parsedCloud.spk.length >= appData.spk.length) {
+                                appData = parsedCloud;
+                                renderAll();
+                            }
                         }
                     } else {
                         syncToCloud();
                     }
-                }, (error) => { loadFromLocalStorage(); });
-            } catch(e) {
-                loadFromLocalStorage();
-            }
+                }, (error) => { console.warn(error); });
+            } catch(e) {}
         }
 
         window.syncToCloud = function() {
             renderAll();
-            try { localStorage.setItem('savelle_app_data_' + appId, JSON.stringify(appData)); } catch (e) {}
+            try { 
+                localStorage.setItem('savelle_app_data_' + appId, JSON.stringify(appData)); 
+            } catch (e) {}
             if (!db || !userId) return;
             try {
                 const docRef = doc(db, 'artifacts', appId, 'public_data', 'store_main_v14');
