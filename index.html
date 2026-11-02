@@ -1024,38 +1024,15 @@
         window.renderSalaries = renderSalaries;
         window.renderAll = renderAll;
 
-        // Muat data dari localStorage terlebih dahulu
+       // Muat data dari localStorage terlebih dahulu agar aman saat refresh
         loadFromLocalStorage();
 
-        // Lewati Auth Firebase sementara agar tidak error 400 dan data aman lokal
         try {
             db = getFirestore(app);
             userId = 'local_user_savelle';
             setupRealtimeSync();
         } catch (e) {
             console.warn("Running in local-only mode:", e);
-        }
-
-        function loadFromLocalStorage() {
-            try {
-                const saved = localStorage.getItem('savelle_app_data_' + appId);
-                if (saved) {
-                    appData = JSON.parse(saved);
-                }
-            } catch (e) {}
-            renderAll();
-        }
-
-        function setupRealtimeSync() {
-            // Karena mode lokal diaktifkan, sinkronisasi diarahkan langsung simpan lokal
-            renderAll();
-        }
-
-        window.syncToCloud = function() {
-            renderAll();
-            try { 
-                localStorage.setItem('savelle_app_data_' + appId, JSON.stringify(appData)); 
-            } catch (e) {}
         }
 
         function loadFromLocalStorage() {
@@ -1099,13 +1076,6 @@
                 const docRef = doc(db, 'artifacts', appId, 'public_data', 'store_main_v14');
                 setDoc(docRef, { payload: JSON.stringify(appData), updatedAt: new Date().toISOString() }).catch(e => {});
             } catch(e) {}
-        };
-
-        window.resetAllData = function() {
-            showModal('Reset Semua Data', 'Yakin ingin mereset seluruh data order, inventory, keuangan, gaji, dan master menjadi 0/kosong?', () => {
-                appData = JSON.parse(JSON.stringify(defaultAppData));
-                syncToCloud();
-            });
         };
 
         window.switchTab = function(tabId) {
