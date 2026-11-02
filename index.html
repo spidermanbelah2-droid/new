@@ -966,16 +966,15 @@
 
     <!-- Firebase & App Script -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const appId = (typeof __app_id !== 'undefined' && __app_id) ? __app_id : 'savelle_store_default';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "demo", projectId: "demo" };
-
-        let db, auth, userId = null;
-        let salesChartInstance = null;
-
+        const firebaseConfig = {
+  apiKey: "AIzaSyCMWd40WW-SeeVpTkav5zOx0IUHNjFtnCI",
+  authDomain: "newposorder-aa240.firebaseapp.com",
+  projectId: "newposorder-aa240",
+  storageBucket: "newposorder-aa240.firebasestorage.app",
+  messagingSenderId: "373712330360",
+  appId: "1:373712330360:web:491fe02cbafa3e4d63578d",
+  measurementId: "G-90QWWJET6C"
+};
         const defaultAppData = {
             balances: { mandiri: 0, gopay: 0 },
             masterGarments: [
